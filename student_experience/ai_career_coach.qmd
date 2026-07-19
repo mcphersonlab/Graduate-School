@@ -1,0 +1,214 @@
+---
+title: "AI Career Coach Chatbot"
+subtitle: "Interactive career guidance for graduate students"
+description: "Answer career-development questions and get a personalized, AI-style coaching response with next-step recommendations."
+order: 6
+---
+
+This interactive page helps graduate students think through career decisions by turning your answers into a personalized coaching conversation.
+
+---
+
+## Career Development Chatbot
+
+> This tool runs in your browser and does not call external AI services.
+
+```{=html}
+<section class="career-coach-shell">
+  <form id="career-coach-form" class="career-coach-form">
+    <label>Career direction
+      <select id="cc-track" required>
+        <option value="">Choose one</option>
+        <option value="academia">Academia (faculty/research)</option>
+        <option value="industry">Industry (R&D/product/data)</option>
+        <option value="government">Government/public sector</option>
+        <option value="nonprofit">Nonprofit/policy/advocacy</option>
+        <option value="undecided">Undecided/exploring</option>
+      </select>
+    </label>
+
+    <label>Job search timeline
+      <select id="cc-timeline" required>
+        <option value="">Choose one</option>
+        <option value="0-3">0–3 months</option>
+        <option value="3-6">3–6 months</option>
+        <option value="6-12">6–12 months</option>
+        <option value="12+">12+ months</option>
+      </select>
+    </label>
+
+    <label>Preferred work style
+      <select id="cc-style" required>
+        <option value="">Choose one</option>
+        <option value="independent">Independent deep work</option>
+        <option value="collaborative">Highly collaborative team work</option>
+        <option value="hybrid">Hybrid balance</option>
+      </select>
+    </label>
+
+    <label>Top strength
+      <input id="cc-strength" type="text" maxlength="120" placeholder="e.g., experimental design, coding, communication" required />
+    </label>
+
+    <label>Main concern
+      <textarea id="cc-concern" rows="3" maxlength="240" placeholder="e.g., not enough publications, unclear resume translation" required></textarea>
+    </label>
+
+    <fieldset>
+      <legend>Top priorities (choose up to 3)</legend>
+      <label><input type="checkbox" name="cc-priority" value="salary" /> Salary growth</label>
+      <label><input type="checkbox" name="cc-priority" value="impact" /> Social/scientific impact</label>
+      <label><input type="checkbox" name="cc-priority" value="stability" /> Long-term stability</label>
+      <label><input type="checkbox" name="cc-priority" value="flexibility" /> Work-life flexibility</label>
+      <label><input type="checkbox" name="cc-priority" value="mentorship" /> Mentorship and learning</label>
+    </fieldset>
+
+    <button type="submit">Generate coaching response</button>
+  </form>
+
+  <div id="career-chat" class="career-chat" aria-live="polite" aria-label="Career coach chat transcript">
+    <div class="chat-message chat-message--coach">Hi! Share your profile in the form and I’ll generate a coaching plan tailored to your graduate-school goals.</div>
+  </div>
+
+  <form id="career-followup-form" class="career-followup" hidden>
+    <label for="cc-followup">Ask a follow-up question</label>
+    <input id="cc-followup" type="text" maxlength="220" placeholder="e.g., How should I prepare for industry interviews?" />
+    <button type="submit">Send</button>
+  </form>
+</section>
+
+<script>
+(() => {
+  const root = document.querySelector(".career-coach-shell");
+  if (!root) return;
+
+  const form = root.querySelector("#career-coach-form");
+  const chat = root.querySelector("#career-chat");
+  const followupForm = root.querySelector("#career-followup-form");
+  const followupInput = root.querySelector("#cc-followup");
+
+  const labelMap = {
+    academia: "academia",
+    industry: "industry",
+    government: "government/public sector",
+    nonprofit: "nonprofit/policy",
+    undecided: "exploration mode"
+  };
+
+  const timelineMap = {
+    "0-3": "immediate transition",
+    "3-6": "near-term transition",
+    "6-12": "mid-term transition",
+    "12+": "longer-horizon transition"
+  };
+
+  const styleMap = {
+    independent: "independent ownership",
+    collaborative: "high-collaboration projects",
+    hybrid: "a balanced hybrid setup"
+  };
+
+  let profile = null;
+
+  const clean = (value) => String(value || "").trim().replace(/\s+/g, " ");
+  const pick = (arr, seed) => arr[seed % arr.length];
+  const seedFromText = (text) => [...text].reduce((n, c) => n + c.charCodeAt(0), 0);
+
+  const addMessage = (role, text) => {
+    const bubble = document.createElement("div");
+    bubble.className = `chat-message chat-message--${role}`;
+    bubble.textContent = text;
+    chat.appendChild(bubble);
+    chat.scrollTop = chat.scrollHeight;
+  };
+
+  const buildPlan = (data) => {
+    const summarySeed = seedFromText(`${data.track}${data.timeline}${data.style}${data.concern}${data.strength}`);
+    const opening = pick([
+      "Great profile. Here is your personalized career strategy:",
+      "Thanks for the details — this looks like a strong foundation:",
+      "Based on your answers, here is a focused coaching roadmap:"
+    ], summarySeed);
+
+    const prioritiesText = data.priorities.length ? data.priorities.join(", ") : "career clarity";
+    const timelineLine = `You are targeting ${timelineMap[data.timeline]} into ${labelMap[data.track]}, with emphasis on ${prioritiesText}.`;
+    const strengthLine = `Lead with your strength in ${data.strength} when writing your resume, LinkedIn summary, and interview stories.`;
+    const concernLine = `To address your concern (${data.concern}), build one small weekly milestone with measurable output.`;
+    const styleLine = `Prioritize roles and mentors aligned with ${styleMap[data.style]}.`;
+
+    const nextStepMap = {
+      academia: "Next 2 weeks: draft a research statement outline, identify 3 target labs/departments, and request one mock research talk.",
+      industry: "Next 2 weeks: create 2 STAR stories, tailor your resume to 3 job postings, and schedule one mock technical/behavioral interview.",
+      government: "Next 2 weeks: map your research to mission-aligned agencies, prepare a federal-style resume draft, and track opening cycles.",
+      nonprofit: "Next 2 weeks: translate your research impact for non-specialists, identify 3 mission-aligned organizations, and practice concise storytelling.",
+      undecided: "Next 2 weeks: run 3 informational interviews across different sectors and score each path by fit, growth, and stability."
+    };
+
+    return [
+      opening,
+      timelineLine,
+      strengthLine,
+      concernLine,
+      styleLine,
+      nextStepMap[data.track]
+    ].join(" ");
+  };
+
+  const followupReply = (question) => {
+    const q = question.toLowerCase();
+    if (q.includes("resume") || q.includes("cv")) {
+      return "For your resume/CV, prioritize outcomes and impact bullets. Keep one master version, then tailor the top third to each role.";
+    }
+    if (q.includes("network") || q.includes("informational")) {
+      return "Use a weekly networking rhythm: 2 outreach messages, 1 conversation, and 1 follow-up thank-you with a concrete next question.";
+    }
+    if (q.includes("interview")) {
+      return "Practice structured stories tied to your strength, concern, and target role. Record yourself once, then refine clarity and evidence.";
+    }
+    if (q.includes("timeline") || q.includes("plan")) {
+      return "Break your transition into weekly goals: discovery, positioning materials, outreach, and interview reps. Track completion, not perfection.";
+    }
+    return `Given your ${labelMap[profile.track]} goal and ${timelineMap[profile.timeline]} timeline, choose one high-leverage action this week and one accountability check by Friday.`;
+  };
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+
+    const priorities = [...root.querySelectorAll('input[name="cc-priority"]:checked')].slice(0, 3).map((item) => item.parentElement.textContent.trim());
+    profile = {
+      track: clean(root.querySelector("#cc-track").value),
+      timeline: clean(root.querySelector("#cc-timeline").value),
+      style: clean(root.querySelector("#cc-style").value),
+      strength: clean(root.querySelector("#cc-strength").value),
+      concern: clean(root.querySelector("#cc-concern").value),
+      priorities
+    };
+
+    if (!profile.track || !profile.timeline || !profile.style || !profile.strength || !profile.concern) return;
+
+    addMessage("user", `I am exploring ${labelMap[profile.track]} and my main concern is: ${profile.concern}`);
+    addMessage("coach", buildPlan(profile));
+    followupForm.hidden = false;
+  });
+
+  followupForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!profile) return;
+    const question = clean(followupInput.value);
+    if (!question) return;
+    addMessage("user", question);
+    addMessage("coach", followupReply(question));
+    followupInput.value = "";
+    followupInput.focus();
+  });
+})();
+</script>
+```
+
+---
+
+### Suggested ways to use this page
+
+- Re-run the coach after updating your priorities each semester.
+- Use the generated steps as an agenda for advisor or mentor meetings.
+- Convert one coaching recommendation into a measurable weekly deliverable.

@@ -90,3 +90,95 @@ hr {
     padding-right: 0;
   }
 }
+
+.career-coach-shell {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.career-coach-form {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 12px;
+  background: var(--bs-body-bg, #fff);
+}
+
+.career-coach-form label,
+.career-coach-form fieldset {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.career-coach-form input,
+.career-coach-form select,
+.career-coach-form textarea {
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  background: var(--bs-body-bg, #fff);
+  color: inherit;
+}
+
+.career-coach-form fieldset {
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+}
+
+.career-coach-form button,
+.career-followup button {
+  width: fit-content;
+  border: 1px solid #0d6efd;
+  background: #0d6efd;
+  color: #fff;
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+}
+
+.career-chat {
+  display: grid;
+  gap: 0.6rem;
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 12px;
+  padding: 0.9rem;
+  max-height: 420px;
+  overflow-y: auto;
+  background: color-mix(in srgb, var(--bs-body-bg, #fff) 90%, #f4f7fb 10%);
+}
+
+.chat-message {
+  max-width: min(100%, 850px);
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  line-height: 1.5;
+}
+
+.chat-message--coach {
+  border: 1px solid #b7d5ff;
+  background: #eaf3ff;
+}
+
+.chat-message--user {
+  border: 1px solid #ced4da;
+  background: #f8f9fa;
+  justify-self: end;
+}
+
+.career-followup {
+  display: grid;
+  gap: 0.45rem;
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 12px;
+  padding: 0.9rem;
+}
+
+.career-followup input {
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  background: var(--bs-body-bg, #fff);
+  color: inherit;
+}

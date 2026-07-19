@@ -43,6 +43,8 @@ Navigate the guides using the sidebar, or jump directly to a topic below.
 
 - **[Career ROI, Contracts & Employment Prospects](student_experience/career_roi.qmd)**<br>
   Opportunity-cost calculator, PhD salary premium by sector, full offer-letter review checklist (compensation, equity, IP assignment, non-compete), negotiation strategy, and postdoc evaluation framework.
+- **[AI Career Coach Chatbot](student_experience/ai_career_coach.qmd)**<br>
+  Answer interactive career-development questions and get a personalized coaching chat response with concrete next-step actions.
 :::
 
 :::

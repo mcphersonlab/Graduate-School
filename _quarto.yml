@@ -25,6 +25,7 @@ website:
       - student_experience/family_planning.qmd
       - student_experience/health_insurance.qmd
       - student_experience/career_roi.qmd
+      - student_experience/ai_career_coach.qmd
 
 format:
   html:

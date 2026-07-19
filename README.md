@@ -21,6 +21,7 @@ These guides are rendered as an interactive [Quarto](https://quarto.org/) websit
 | [Family Planning](student_experience/family_planning.qmd) | Parental leave, childcare, partner employment, and family-friendly policies |
 | [Health & Health Insurance](student_experience/health_insurance.qmd) | Understand your coverage, find mental health support, and navigate crises |
 | [Career ROI, Contracts & Employment Prospects](student_experience/career_roi.qmd) | Assess the value of your PhD, review offer letters, and plan your job search |
+| [AI Career Coach Chatbot](student_experience/ai_career_coach.qmd) | Interactive career-development Q&A that generates personalized coaching guidance and next steps |
 
 ---
 
