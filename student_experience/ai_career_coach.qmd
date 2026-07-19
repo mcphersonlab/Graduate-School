@@ -5,13 +5,13 @@ description: "Answer career-development questions and get a personalized, AI-sty
 order: 6
 ---
 
-This interactive page helps graduate students think through career decisions by turning your answers into a personalized coaching conversation.
+This interactive page helps graduate students think through career decisions by turning your answers into a personalized coaching conversation powered by a local Llama 3.2 language model.
 
 ---
 
 ## Career Development Chatbot
 
-> This tool runs in your browser and does not call external AI services.
+> **Runs entirely in your browser.** This page uses [WebLLM](https://webllm.mlc.ai/) to run Llama 3.2 (1 B) locally via WebGPU — no data ever leaves your device and no external AI service is called. **Requires Chrome 113+ or Edge 113+** with WebGPU enabled. The model (~700 MB) is downloaded and cached on first use.
 
 ```{=html}
 <section class="career-coach-shell">
@@ -41,7 +41,7 @@ This interactive page helps graduate students think through career decisions by 
       <select id="cc-style" required>
         <option value="">Choose one</option>
         <option value="independent">Independent deep work</option>
-        <option value="collaborative">Highly collaborative team work</option>
+        <option value="collaborative">Highly collaborative teamwork</option>
         <option value="hybrid">Hybrid balance</option>
       </select>
     </label>
@@ -63,11 +63,13 @@ This interactive page helps graduate students think through career decisions by 
       <label><input type="checkbox" name="cc-priority" value="mentorship" /> Mentorship and learning</label>
     </fieldset>
 
-    <button type="submit">Generate coaching response</button>
+    <button type="submit" id="cc-submit" disabled>Generate coaching response</button>
   </form>
 
-  <div id="career-chat" class="career-chat" aria-live="polite" aria-label="Career coach chat transcript">
-    <div class="chat-message chat-message--coach">Hi! Share your profile in the form and I’ll generate a coaching plan tailored to your graduate-school goals.</div>
+  <div id="career-llm-status" class="career-llm-status" aria-live="polite"></div>
+
+  <div id="career-chat" class="career-chat" role="log" aria-relevant="additions" aria-label="Career coach chat transcript">
+    <div class="chat-message chat-message--coach">Loading Llama 3.2 model… this may take a moment on first visit.</div>
   </div>
 
   <form id="career-followup-form" class="career-followup" hidden>
@@ -77,42 +79,21 @@ This interactive page helps graduate students think through career decisions by 
   </form>
 </section>
 
-<script>
-(() => {
+<script type="module">
+(async () => {
   const root = document.querySelector(".career-coach-shell");
   if (!root) return;
 
-  const form = root.querySelector("#career-coach-form");
-  const chat = root.querySelector("#career-chat");
-  const followupForm = root.querySelector("#career-followup-form");
+  const form       = root.querySelector("#career-coach-form");
+  const submitBtn  = root.querySelector("#cc-submit");
+  const chat       = root.querySelector("#career-chat");
+  const statusEl   = root.querySelector("#career-llm-status");
+  const followupForm  = root.querySelector("#career-followup-form");
   const followupInput = root.querySelector("#cc-followup");
 
-  const labelMap = {
-    academia: "academia",
-    industry: "industry",
-    government: "government/public sector",
-    nonprofit: "nonprofit/policy",
-    undecided: "exploration mode"
-  };
+  const clean = (v) => String(v || "").trim().replace(/\s+/g, " ");
 
-  const timelineMap = {
-    "0-3": "immediate transition",
-    "3-6": "near-term transition",
-    "6-12": "mid-term transition",
-    "12+": "longer-horizon transition"
-  };
-
-  const styleMap = {
-    independent: "independent ownership",
-    collaborative: "high-collaboration projects",
-    hybrid: "a balanced hybrid setup"
-  };
-
-  let profile = null;
-
-  const clean = (value) => String(value || "").trim().replace(/\s+/g, " ");
-  const pick = (arr, seed) => arr[seed % arr.length];
-  const seedFromText = (text) => [...text].reduce((n, c) => n + c.charCodeAt(0), 0);
+  const setStatus = (msg) => { statusEl.textContent = msg; };
 
   const addMessage = (role, text) => {
     const bubble = document.createElement("div");
@@ -122,84 +103,155 @@ This interactive page helps graduate students think through career decisions by 
     chat.scrollTop = chat.scrollHeight;
   };
 
-  const buildPlan = (data) => {
-    const summarySeed = seedFromText(`${data.track}${data.timeline}${data.style}${data.concern}${data.strength}`);
-    const opening = pick([
-      "Great profile. Here is your personalized career strategy:",
-      "Thanks for the details — this looks like a strong foundation:",
-      "Based on your answers, here is a focused coaching roadmap:"
-    ], summarySeed);
+  // Replace placeholder greeting once we start loading
+  chat.querySelector(".chat-message--coach").textContent =
+    "Initializing Llama 3.2 1B — please wait…";
 
-    const prioritiesText = data.priorities.length ? data.priorities.join(", ") : "career clarity";
-    const timelineLine = `You are targeting ${timelineMap[data.timeline]} into ${labelMap[data.track]}, with emphasis on ${prioritiesText}.`;
-    const strengthLine = `Lead with your strength in ${data.strength} when writing your resume, LinkedIn summary, and interview stories.`;
-    const concernLine = `To address your concern (${data.concern}), build one small weekly milestone with measurable output.`;
-    const styleLine = `Prioritize roles and mentors aligned with ${styleMap[data.style]}.`;
+  // ── WebGPU check ─────────────────────────────────────────────────────────
+  if (!navigator.gpu) {
+    const msg = "WebGPU is not available in this browser. Please open this page in Chrome 113+, Edge 113+, or another WebGPU-enabled browser to run the local Llama model.";
+    chat.querySelector(".chat-message--coach").textContent = msg;
+    setStatus("⚠️ WebGPU required.");
+    return;
+  }
 
-    const nextStepMap = {
-      academia: "Next 2 weeks: draft a research statement outline, identify 3 target labs/departments, and request one mock research talk.",
-      industry: "Next 2 weeks: create 2 STAR stories, tailor your resume to 3 job postings, and schedule one mock technical/behavioral interview.",
-      government: "Next 2 weeks: map your research to mission-aligned agencies, prepare a federal-style resume draft, and track opening cycles.",
-      nonprofit: "Next 2 weeks: translate your research impact for non-specialists, identify 3 mission-aligned organizations, and practice concise storytelling.",
-      undecided: "Next 2 weeks: run 3 informational interviews across different sectors and score each path by fit, growth, and stability."
-    };
+  // ── Load WebLLM from CDN ──────────────────────────────────────────────────
+  let webllm;
+  try {
+    webllm = await import("https://esm.run/@mlc-ai/web-llm");
+  } catch (err) {
+    const msg = "Could not load the WebLLM library. Check your internet connection and reload the page.";
+    chat.querySelector(".chat-message--coach").textContent = msg;
+    setStatus(`⚠️ Library load failed: ${err.message}`);
+    return;
+  }
 
-    return [
-      opening,
-      timelineLine,
-      strengthLine,
-      concernLine,
-      styleLine,
-      nextStepMap[data.track]
-    ].join(" ");
+  // ── Initialise engine with Llama 3.2 1B ─────────────────────────────────
+  const MODEL_ID = "Llama-3.2-1B-Instruct-q4f32_1-MLC";
+  let engine;
+
+  setStatus("Downloading Llama 3.2 1B (~700 MB, cached after first visit)…");
+  try {
+    engine = await webllm.CreateMLCEngine(MODEL_ID, {
+      initProgressCallback: ({ progress, text }) => {
+        const pct = Math.round((progress || 0) * 100);
+        setStatus(`Loading Llama 3.2 1B… ${text || pct + "%"}`);
+      }
+    });
+  } catch (err) {
+    chat.querySelector(".chat-message--coach").textContent =
+      "Model failed to load. See the status bar for details.";
+    setStatus(`⚠️ Model load error: ${err.message}`);
+    return;
+  }
+
+  // Model ready
+  setStatus("Llama 3.2 1B ready.");
+  chat.querySelector(".chat-message--coach").textContent =
+    "Hi! Share your profile in the form and I'll generate a coaching plan tailored to your graduate-school goals.";
+  submitBtn.disabled = false;
+  setTimeout(() => { statusEl.textContent = ""; }, 4000);
+
+  // ── Conversation history (system + turns) ────────────────────────────────
+  const SYSTEM_PROMPT =
+    "You are an expert career coach for PhD graduate students. " +
+    "Give concise, specific, and actionable advice. " +
+    "Keep each response to 4–6 sentences unless more detail is requested. " +
+    "Focus on practical next steps. Be encouraging but realistic.";
+
+  const history = [];
+
+  const chat_with_llm = async (userMessage) => {
+    history.push({ role: "user", content: userMessage });
+    const reply = await engine.chat.completions.create({
+      messages: [{ role: "system", content: SYSTEM_PROMPT }, ...history],
+      temperature: 0.7,
+      max_tokens: 350
+    });
+    const text = reply.choices[0].message.content.trim();
+    history.push({ role: "assistant", content: text });
+    return text;
   };
 
-  const followupReply = (question) => {
-    const q = question.toLowerCase();
-    if (q.includes("resume") || q.includes("cv")) {
-      return "For your resume/CV, prioritize outcomes and impact bullets. Keep one master version, then tailor the top third to each role.";
-    }
-    if (q.includes("network") || q.includes("informational")) {
-      return "Use a weekly networking rhythm: 2 outreach messages, 1 conversation, and 1 follow-up thank-you with a concrete next question.";
-    }
-    if (q.includes("interview")) {
-      return "Practice structured stories tied to your strength, concern, and target role. Record yourself once, then refine clarity and evidence.";
-    }
-    if (q.includes("timeline") || q.includes("plan")) {
-      return "Break your transition into weekly goals: discovery, positioning materials, outreach, and interview reps. Track completion, not perfection.";
-    }
-    return `Given your ${labelMap[profile.track]} goal and ${timelineMap[profile.timeline]} timeline, choose one high-leverage action this week and one accountability check by Friday.`;
-  };
-
-  form.addEventListener("submit", (event) => {
+  // ── Form submit ──────────────────────────────────────────────────────────
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const priorities = [...root.querySelectorAll('input[name="cc-priority"]:checked')].slice(0, 3).map((item) => item.parentElement.textContent.trim());
-    profile = {
-      track: clean(root.querySelector("#cc-track").value),
+    const checked = [...root.querySelectorAll('input[name="cc-priority"]:checked')];
+    if (checked.length > 3) {
+      alert("Please select at most 3 priorities.");
+      return;
+    }
+
+    const priorities = checked.map((el) => el.parentElement.textContent.trim());
+    const profile = {
+      track:    clean(root.querySelector("#cc-track").value),
       timeline: clean(root.querySelector("#cc-timeline").value),
-      style: clean(root.querySelector("#cc-style").value),
+      style:    clean(root.querySelector("#cc-style").value),
       strength: clean(root.querySelector("#cc-strength").value),
-      concern: clean(root.querySelector("#cc-concern").value),
+      concern:  clean(root.querySelector("#cc-concern").value),
       priorities
     };
 
-    if (!profile.track || !profile.timeline || !profile.style || !profile.strength || !profile.concern) return;
+    if (!profile.track || !profile.timeline || !profile.style ||
+        !profile.strength || !profile.concern) return;
 
-    addMessage("user", `I am exploring ${labelMap[profile.track]} and my main concern is: ${profile.concern}`);
-    addMessage("coach", buildPlan(profile));
-    followupForm.hidden = false;
+    const userMsg =
+      `My career profile: target sector = ${profile.track}; ` +
+      `timeline = ${profile.timeline} months; ` +
+      `preferred work style = ${profile.style}; ` +
+      `top strength = "${profile.strength}"; ` +
+      `main concern = "${profile.concern}"; ` +
+      `priorities = ${priorities.length ? priorities.join(", ") : "general career clarity"}. ` +
+      "Please provide a personalized coaching plan with concrete next steps for the next two weeks.";
+
+    addMessage("user",
+      `Career track: ${profile.track} | Timeline: ${profile.timeline} months | Concern: ${profile.concern}`);
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Generating…";
+    setStatus("Llama 3.2 is thinking…");
+
+    try {
+      const response = await chat_with_llm(userMsg);
+      addMessage("coach", response);
+      followupForm.hidden = false;
+    } catch (err) {
+      addMessage("coach", "Sorry, there was an error generating your coaching plan. Please try again.");
+      setStatus(`⚠️ Generation error: ${err.message}`);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Generate coaching response";
+      setTimeout(() => { statusEl.textContent = ""; }, 3000);
+    }
   });
 
-  followupForm.addEventListener("submit", (event) => {
+  // ── Follow-up submit ──────────────────────────────────────────────────────
+  followupForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!profile) return;
     const question = clean(followupInput.value);
     if (!question) return;
+
     addMessage("user", question);
-    addMessage("coach", followupReply(question));
     followupInput.value = "";
-    followupInput.focus();
+
+    const sendBtn = followupForm.querySelector("button[type=submit]");
+    sendBtn.disabled = true;
+    sendBtn.textContent = "Thinking…";
+    setStatus("Llama 3.2 is thinking…");
+
+    try {
+      const response = await chat_with_llm(question);
+      addMessage("coach", response);
+    } catch (err) {
+      addMessage("coach", "Sorry, I couldn't process that question. Please try again.");
+      setStatus(`⚠️ Generation error: ${err.message}`);
+    } finally {
+      sendBtn.disabled = false;
+      sendBtn.textContent = "Send";
+      followupInput.focus();
+      setTimeout(() => { statusEl.textContent = ""; }, 3000);
+    }
   });
 })();
 </script>

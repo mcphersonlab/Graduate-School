@@ -138,6 +138,13 @@ hr {
   padding: 0.5rem 0.8rem;
 }
 
+.career-llm-status {
+  min-height: 1.4em;
+  font-size: 0.88rem;
+  color: var(--bs-secondary-color, #6c757d);
+  padding: 0.2rem 0;
+}
+
 .career-chat {
   display: grid;
   gap: 0.6rem;
@@ -146,6 +153,7 @@ hr {
   padding: 0.9rem;
   max-height: 420px;
   overflow-y: auto;
+  background: #f4f7fb;
   background: color-mix(in srgb, var(--bs-body-bg, #fff) 90%, #f4f7fb 10%);
 }
 
